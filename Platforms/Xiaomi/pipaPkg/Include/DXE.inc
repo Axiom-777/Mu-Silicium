@@ -43,9 +43,13 @@
 !endif
   INF Binaries/pipa/QcomPkg/Drivers/PdcDxe/PdcDxe.inf
 
-  INF MdeModulePkg/Universal/Disk/DiskIoDxe/DiskIoDxe.inf
-  INF MdeModulePkg/Universal/Disk/PartitionDxe/PartitionDxe.inf
+  INF Binaries/pipa/MdeModulePkg/Universal/Disk/DiskIoDxe/DiskIoDxe.inf
+  INF Binaries/pipa/MdeModulePkg/Universal/Disk/PartitionDxe/PartitionDxe.inf
+
   INF FatPkg/EnhancedFatDxe/Fat.inf
+!if $(ENABLE_BOOTLOG) == 1
+  INF SiliciumPkg/Drivers/BootLogDxe/BootLogDxe.inf
+!endif
   INF MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
 
   INF Binaries/pipa/QcomPkg/Drivers/DALSYSDxe/DALSYSDxe.inf

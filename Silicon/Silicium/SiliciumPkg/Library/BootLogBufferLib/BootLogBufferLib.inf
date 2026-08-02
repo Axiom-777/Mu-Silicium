@@ -1,0 +1,23 @@
+## @file
+#  BootLog buffer location library.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = BootLogBufferLib
+  FILE_GUID                      = 0E9E2F51-28B6-4F83-8D23-7C06AD3415E4
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = BootLogBufferLib
+
+[Sources]
+  BootLogBufferLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  SiliciumPkg/SiliciumPkg.dec
+
+[LibraryClasses]
+  MemoryMapHelperLib

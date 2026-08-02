@@ -8,11 +8,30 @@
 ##
 
 [BuildOptions]
+
+  DEBUG_CLANGPDB_*_CC_FLAGS = -D FRAMEBUFFER_DEBUG_OUTPUT=1
+  
+!if $(ENABLE_BOOTLOG) == 1
+  RELEASE_CLANGPDB_*_DLINK_FLAGS = /DEBUG:GHASH
+!endif
+
+!if $(ENABLE_BOOTLOG) == 0
+  #
+  # Normal RELEASE build:
+  # Remove DEBUG(), ASSERT() and related debug macros.
+  #
   RELEASE_CLANGPDB_*_CC_FLAGS = -D MDEPKG_NDEBUG
+!endif
+
   *_CLANGPDB_*_CC_FLAGS       = -Wno-unused-const-variable -Wno-sometimes-uninitialized -Wno-unaligned-access -Wno-deprecated-non-prototype
   *_CLANGPDB_*_CC_FLAGS       = -D CLANG -D ENABLE_SECUREBOOT=$(ENABLE_SECUREBOOT)
+  !if $(ENABLE_BOOTLOG) == 1
+  *_CLANGPDB_*_CC_FLAGS = -D ENABLE_BOOTLOG=1
+!else
+  *_CLANGPDB_*_CC_FLAGS = -D ENABLE_BOOTLOG=0
+!endif
   *_CLANGPDB_AARCH64_CC_FLAGS = -D __DEPRECATED_AARCH64_4K_RUNTIME_GRANULARITY
-
+  
 [BuildOptions.common.EDKII.SEC,BuildOptions.common.EDKII.MM_CORE_STANDALONE]
   *_CLANGPDB_*_DLINK_FLAGS = /ALIGN:0x1000 /FILEALIGN:0x1000
 
@@ -59,18 +78,30 @@
   #
   gEfiMdePkgTokenSpaceGuid.PcdReportStatusCodePropertyMask|0x00
   gEfiMdePkgTokenSpaceGuid.PcdPerformanceLibraryPropertyMask|0
+
 !if $(TARGET) == DEBUG
   gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0x2F
   gEfiMdePkgTokenSpaceGuid.PcdDebugClearMemoryValue|0xAF
   gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8007EE0F
 !else
-  gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0x00
-  gEfiMdePkgTokenSpaceGuid.PcdDebugClearMemoryValue|0x00
-  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x00000000
+  !if $(ENABLE_BOOTLOG) == 1
+    #
+    # RELEASE + BootLog:
+    # Enable DEBUG() output and DEBUG_CODE() blocks,
+    # without enabling ASSERT, breakpoint or dead loop.
+    #
+    gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0x06
+    gEfiMdePkgTokenSpaceGuid.PcdDebugClearMemoryValue|0x00
+    gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8007EE0F
+  !else
+    gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0x00
+    gEfiMdePkgTokenSpaceGuid.PcdDebugClearMemoryValue|0x00
+    gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x00000000
+  !endif
 !endif
+
   gEfiMdePkgTokenSpaceGuid.PcdPostCodePropertyMask|0
   gEfiMdePkgTokenSpaceGuid.PcdSpinLockTimeout|10000000
-
   #
   # Variable Runtime
   #
@@ -88,7 +119,7 @@
   #
   # Graphics
   #
-  gSiliciumPkgTokenSpaceGuid.PcdFrameBufferDelay|10000          # In Microseconds
+  gSiliciumPkgTokenSpaceGuid.PcdFrameBufferDelay|100000         # In Microseconds
 
   #
   # Input
@@ -153,16 +184,42 @@
   #
   # Debug Libraries
   #
-!if $(TARGET) == DEBUG
+!if $(ENABLE_BOOTLOG) == 1
+
+  #
+  # RELEASE/DEBUG with BootLog:
+  # Route DEBUG() into the RAM BootLog transport.
+  #
   SerialPortLib|SiliciumPkg/Library/FrameBufferSerialPortLib/FrameBufferSerialPortLib.inf
   DebugLib|MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf
+
 !else
-  SerialPortLib|MdePkg/Library/BaseSerialPortLibNull/BaseSerialPortLibNull.inf
-  DebugLib|MdePkg/Library/BaseDebugLibNull/BaseDebugLibNull.inf
+
+  !if $(TARGET) == DEBUG
+
+    #
+    # Normal DEBUG:
+    # Restore the original framebuffer debug output.
+    #
+    SerialPortLib|SiliciumPkg/Library/FrameBufferSerialPortLib/FrameBufferSerialPortLib.inf
+    DebugLib|MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf
+
+  !else
+
+    #
+    # Normal RELEASE:
+    # No debug transport.
+    #
+    SerialPortLib|MdePkg/Library/BaseSerialPortLibNull/BaseSerialPortLibNull.inf
+    DebugLib|MdePkg/Library/BaseDebugLibNull/BaseDebugLibNull.inf
+
+  !endif
+
 !endif
+
   DebugAgentLib|MdeModulePkg/Library/DebugAgentLibNull/DebugAgentLibNull.inf
   DebugPrintErrorLevelLib|MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib.inf
-
+  
   #
   # Memory Libraries
   #
@@ -170,6 +227,7 @@
   CacheMaintenanceLib|ArmPkg/Library/ArmCacheMaintenanceLib/ArmCacheMaintenanceLib.inf
   MemoryInitPeiLib|SiliciumPkg/Library/MemoryInitPeiLib/MemoryInitPeiLib.inf
   MemoryMapHelperLib|SiliciumPkg/Library/MemoryMapHelperLib/MemoryMapHelperLib.inf
+  BootLogBufferLib|SiliciumPkg/Library/BootLogBufferLib/BootLogBufferLib.inf
   MemoryTypeInfoSecVarCheckLib|MdeModulePkg/Library/MemoryTypeInfoSecVarCheckLib/MemoryTypeInfoSecVarCheckLib.inf
   MemoryTypeInformationChangeLib|MsCorePkg/Library/MemoryTypeInformationChangeLib/MemoryTypeInformationChangeLib.inf
   DxeMemoryProtectionHobLib|MdeModulePkg/Library/MemoryProtectionHobLib/DxeMemoryProtectionHobLib.inf
@@ -211,6 +269,7 @@
   BmpSupportLib|MdeModulePkg/Library/BaseBmpSupportLib/BaseBmpSupportLib.inf
   BootGraphicsLib|MsGraphicsPkg/Library/BootGraphicsLib/BootGraphicsLib.inf
   BootGraphicsProviderLib|SiliciumPkg/Library/BootGraphicsProviderLib/BootGraphicsProviderLib.inf
+  BootLogLib|SiliciumPkg/Library/BootLogLib/BootLogLib.inf
   FrameBufferBltLib|MdeModulePkg/Library/FrameBufferBltLib/FrameBufferBltLib.inf
   FrameBufferMemDrawLib|MsGraphicsPkg/Library/FrameBufferMemDrawLib/FrameBufferMemDrawLibDxe.inf
   GraphicsConsoleHelperLib|PcBdsPkg/Library/GraphicsConsoleHelperLib/GraphicsConsoleHelper.inf
@@ -446,12 +505,18 @@
   MdeModulePkg/Bus/Usb/UsbKbDxe/UsbKbDxe.inf
   MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
 
-  #
-  # Graphics
-  #
-  MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
+#
+# Graphics
+#
+MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
+
 !if $(USE_CUSTOM_DISPLAY_DRIVER) == 0
   SiliciumPkg/Drivers/SimpleFbDxe/SimpleFbDxe.inf
+
+  !if $(ENABLE_BOOTLOG) == 1
+    SiliciumPkg/Drivers/BootLogDxe/BootLogDxe.inf
+  !endif
+
 !endif
 
   #

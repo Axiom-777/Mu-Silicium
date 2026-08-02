@@ -67,6 +67,19 @@
   #
   gQcomPkgTokenSpaceGuid.PcdPlatformType|"LA"
 
+  # Dynamic RAM Start Address
+
+
+[PcdsDynamicDefault]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdVideoHorizontalResolution|1800
+  gEfiMdeModulePkgTokenSpaceGuid.PcdVideoVerticalResolution|2880
+  gEfiMdeModulePkgTokenSpaceGuid.PcdSetupVideoHorizontalResolution|1800
+  gEfiMdeModulePkgTokenSpaceGuid.PcdSetupVideoVerticalResolution|2880
+  gEfiMdeModulePkgTokenSpaceGuid.PcdSetupConOutColumn|225
+  gEfiMdeModulePkgTokenSpaceGuid.PcdSetupConOutRow|151
+  gEfiMdeModulePkgTokenSpaceGuid.PcdConOutColumn|225
+  gEfiMdeModulePkgTokenSpaceGuid.PcdConOutRow|151
+
 [LibraryClasses]
   #
   # Memory Libraries

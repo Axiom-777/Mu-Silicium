@@ -8,3 +8,4 @@ __pycache__
 *:Zone.Identifier
 .vscode
 uuid
+.venv/

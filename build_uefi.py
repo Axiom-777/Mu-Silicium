@@ -12,7 +12,7 @@ import subprocess
 import coloredlogs
 import argparse
 import logging
-import tomllib
+import tomli as tomllib
 
 #
 # Logger
@@ -44,6 +44,7 @@ class BuildContext:
     device_model:      int
     build_mode:        str
     enable_secureboot: bool
+    enable_bootlog:    bool
     cleanup:           bool
     update:            bool
 
@@ -78,6 +79,7 @@ def parse_arguments () -> BuildContext:
     parser.add_argument ("-m", "--model",             type=int, default=0,                                       help="Defines the Release Type of the Build.")
     parser.add_argument ("-r", "--release",           type=str, default="RELEASE", choices=["RELEASE", "DEBUG"], help="Defines the Model Type of the Selected Target Device.")
     parser.add_argument ("-s", "--enable-secureboot", action="store_true",                                       help="Enables Secure Boot.")
+    parser.add_argument ("-l", "--bootlog",           action="store_true",                                       help="Enable UEFI BootLog support")
     parser.add_argument ("-c", "--clean",             action="store_true",                                       help="Removes Old Build Files and Starts a Clean Build.")
     parser.add_argument ("-u", "--update",            action="store_true",                                       help="Updates your Local Repo before Building.")
 
@@ -90,6 +92,7 @@ def parse_arguments () -> BuildContext:
         device_model      = args.model,
         build_mode        = args.release,
         enable_secureboot = args.enable_secureboot,
+        enable_bootlog    = args.bootlog,
         cleanup           = args.clean,
         update            = args.update
     )
@@ -225,6 +228,7 @@ def compile_uefi (ctx: BuildContext, fd_config: dict, script_path: Path) -> bool
         str (script_path),
         f"TARGET={ctx.build_mode}",
         f"ENABLE_SECUREBOOT={int (ctx.enable_secureboot)}",
+        f"ENABLE_BOOTLOG={int(ctx.enable_bootlog)}",
         f"FD_BASE={fd_base}",
         f"FD_SIZE={fd_size}",
         f"FD_BLOCKS={fd_blocks}",

@@ -1,0 +1,39 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = BootLogLib
+  FILE_GUID                      = C84A8331-B6B4-42F1-9E66-4772BF1B9750
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = BootLogLib|DXE_DRIVER
+
+[Sources]
+  BootLogLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  SiliciumPkg/SiliciumPkg.dec
+
+[LibraryClasses]
+  BaseMemoryLib
+  BootLogBufferLib
+  DebugLib
+  MemoryAllocationLib
+  PcdLib
+  PrintLib
+  UefiBootServicesTableLib
+
+[Protocols]
+  gEfiSimpleFileSystemProtocolGuid
+  gEfiPartitionInfoProtocolGuid
+
+[Guids]
+  gEfiFileInfoGuid
+  gEfiFileSystemInfoGuid
+  gEfiPartTypeSystemPartGuid
+
+[FixedPcd]
+  gSiliciumPkgTokenSpaceGuid.PcdSmbiosSystemManufacturer
+  gSiliciumPkgTokenSpaceGuid.PcdSmbiosSystemModel
+  gSiliciumPkgTokenSpaceGuid.PcdSmbiosSystemRetailModel
+  gSiliciumPkgTokenSpaceGuid.PcdSmbiosProcessorModel
+  gSiliciumPkgTokenSpaceGuid.PcdSmbiosProcessorPartNumber

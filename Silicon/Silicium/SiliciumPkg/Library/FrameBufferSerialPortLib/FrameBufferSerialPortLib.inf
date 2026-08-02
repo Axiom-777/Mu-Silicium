@@ -17,6 +17,7 @@
 [LibraryClasses]
   ArmLib
   BaseMemoryLib
+  BootLogBufferLib
   CacheMaintenanceLib
   MemoryMapHelperLib
   TimerLib

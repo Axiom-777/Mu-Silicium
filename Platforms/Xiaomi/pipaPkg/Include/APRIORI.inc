@@ -35,14 +35,18 @@ APRIORI DXE {
 
   INF Binaries/pipa/QcomPkg/Drivers/PmicDxe/PmicDxeLa.inf
 
-  INF MdeModulePkg/Universal/Disk/DiskIoDxe/DiskIoDxe.inf
-  INF MdeModulePkg/Universal/Disk/PartitionDxe/PartitionDxe.inf
+  INF Binaries/pipa/MdeModulePkg/Universal/Disk/DiskIoDxe/DiskIoDxe.inf
+  INF Binaries/pipa/MdeModulePkg/Universal/Disk/PartitionDxe/PartitionDxe.inf
+
   INF MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
 
   INF Binaries/pipa/QcomPkg/Drivers/SdccDxe/SdccDxe.inf
   INF Binaries/pipa/QcomPkg/Drivers/UFSDxe/UFSDxe.inf
 
   INF FatPkg/EnhancedFatDxe/Fat.inf
+!if $(ENABLE_BOOTLOG) == 1
+  INF SiliciumPkg/Drivers/BootLogDxe/BootLogDxe.inf
+!endif
 
   INF Binaries/pipa/QcomPkg/Drivers/TzDxe/TzDxeLA.inf
 

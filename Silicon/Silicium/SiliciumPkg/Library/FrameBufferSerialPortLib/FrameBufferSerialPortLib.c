@@ -1,4 +1,5 @@
 #include <Library/BaseMemoryLib.h>
+#include <Library/BootLogBuffer.h>
 #include <Library/CacheMaintenanceLib.h>
 #include <Library/MemoryMapHelperLib.h>
 #include <Library/SerialPortLib.h>
@@ -102,21 +103,23 @@ AdvanceNewLine (
   IN EFI_PHYSICAL_ADDRESS       FbBase,
   IN UINT64                     FbLength,
   IN EFI_FRAME_BUFFER_POSITION *CurrentPosition,
-  IN EFI_FRAME_BUFFER_POSITION  MaxPosition)
+  IN EFI_FRAME_BUFFER_POSITION  MaxPosition
+  )
 {
-  // Wait
   MicroSecondDelay (FB_DELAY_US);
 
-  // Update Position
-  CurrentPosition->XPos  = 0;
-  CurrentPosition->YPos += 1;
+  CurrentPosition->XPos = 0;
 
-  // Verify Y Position
+  if (CurrentPosition->YPos < MaxPosition.YPos) {
+    CurrentPosition->YPos++;
+  }
+
   if (CurrentPosition->YPos >= MaxPosition.YPos) {
-    // Clear Frame Buffer
-    ZeroMem ((VOID *)FbBase, FB_WIDTH * FB_HEIGHT * FB_BPP);
+    ZeroMem (
+      (VOID *)(UINTN)FbBase,
+      FB_WIDTH * FB_HEIGHT * FB_BPP
+      );
 
-    // Reset X & Y Position
     CurrentPosition->XPos = 0;
     CurrentPosition->YPos = 0;
   }
@@ -157,30 +160,53 @@ VOID
 WriteFrameBuffer (
   IN EFI_PHYSICAL_ADDRESS FbBase,
   IN UINT64               FbLength,
-  IN UINT8                Character)
+  IN UINT8                Character
+  )
 {
   EFI_FRAME_BUFFER_POSITION *CurrentPosition;
   EFI_FRAME_BUFFER_POSITION  MaxPosition;
   UINT8                     *Pixels;
+  UINT8                      GlyphFontScale;
+  UINT64                     Glyph;
+  UINTN                      GlyphWidth;
+  UINTN                      GlyphHeight;
 
-  // Set Glyph Font
   STATIC CONST UINT64 GlyphFont[] = GLYPH_FONT;
 
-  // Set Glyph Font Scale
-  UINT8 GlyphFontScale = GetFontScale ();
+  GlyphFontScale = GetFontScale ();
 
-  // Get Frame Buffer Positions
-  GetFbPositions (FbBase, FbLength, GlyphFontScale, &CurrentPosition, &MaxPosition);
+  GetFbPositions (
+    FbBase,
+    FbLength,
+    GlyphFontScale,
+    &CurrentPosition,
+    &MaxPosition
+    );
 
-  // Skip Invalid ACSII Characters
+  //
+  // На холодном старте последние байты framebuffer могут содержать мусор.
+  // Не используем XPos/YPos, пока не проверим их границы.
+  //
+  if ((MaxPosition.XPos == 0) ||
+      (MaxPosition.YPos == 0) ||
+      (CurrentPosition->XPos >= MaxPosition.XPos) ||
+      (CurrentPosition->YPos >= MaxPosition.YPos)) {
+    CurrentPosition->XPos = 0;
+    CurrentPosition->YPos = 0;
+  }
+
   if (Character >= 127) {
     return;
   }
 
-  // Handle Control Characters
   if (Character < 32) {
     if (Character == '\n') {
-      AdvanceNewLine (FbBase, FbLength, CurrentPosition, MaxPosition);
+      AdvanceNewLine (
+        FbBase,
+        FbLength,
+        CurrentPosition,
+        MaxPosition
+        );
     } else if (Character == '\r') {
       CurrentPosition->XPos = 0;
     }
@@ -188,35 +214,40 @@ WriteFrameBuffer (
     return;
   }
 
-  // Skip leading Spaces
-  if (CurrentPosition->XPos == 0 && Character == ' ') {
+  if ((CurrentPosition->XPos == 0) && (Character == ' ')) {
     return;
   }
 
-  // Translate ACSII Character
-  UINT64 Glyph = GlyphFont[Character - 32];
+  Glyph = GlyphFont[Character - 32];
 
-  // Calculate Glyph Dimension
-  UINTN GlyphWidth  = (FONT_WIDTH  + 1) * GlyphFontScale;
-  UINTN GlyphHeight = (FONT_HEIGHT - 4) * GlyphFontScale;
+  GlyphWidth  = (FONT_WIDTH + 1) * GlyphFontScale;
+  GlyphHeight = (FONT_HEIGHT - 4) * GlyphFontScale;
 
-  // Set Glyph Pixels
-  Pixels  = (VOID *)FbBase;
-  Pixels += (UINTN)CurrentPosition->YPos * GlyphHeight * (FB_WIDTH * FB_BPP);
-  Pixels += (UINTN)CurrentPosition->XPos * GlyphWidth  * FB_BPP;
+  Pixels  = (UINT8 *)(UINTN)FbBase;
+  Pixels += (UINTN)CurrentPosition->YPos *
+            GlyphHeight *
+            (FB_WIDTH * FB_BPP);
+  Pixels += (UINTN)CurrentPosition->XPos *
+            GlyphWidth *
+            FB_BPP;
 
-  // Draw Glyph
-  DrawGlyph (Pixels, Glyph, GlyphFontScale);
+  DrawGlyph (
+    Pixels,
+    Glyph,
+    GlyphFontScale
+    );
 
-  // Increase X Position
   CurrentPosition->XPos++;
 
-  // Check Max X Position
   if (CurrentPosition->XPos >= MaxPosition.XPos) {
-    AdvanceNewLine (FbBase, FbLength, CurrentPosition, MaxPosition);
+    AdvanceNewLine (
+      FbBase,
+      FbLength,
+      CurrentPosition,
+      MaxPosition
+      );
   }
 }
-
 EFI_STATUS
 GetFrameBufferMemory (
   OUT EFI_PHYSICAL_ADDRESS *Base,
@@ -242,42 +273,117 @@ UINTN
 EFIAPI
 SerialPortWrite (
   IN UINT8 *Buffer,
-  IN UINTN  NumberOfBytes)
+  IN UINTN  NumberOfBytes
+  )
 {
-  EFI_STATUS           Status;
+  EFI_STATUS              Status;
+  BOOT_LOG_BUFFER_HEADER *Header;
+  UINT8                  *LogData;
+  UINTN                   LogDataSize;
+  BOOLEAN                 BootLogAvailable;
+
+#if defined (FRAMEBUFFER_DEBUG_OUTPUT)
   EFI_PHYSICAL_ADDRESS FbBase;
   UINT64               FbLength;
+  BOOLEAN              FrameBufferAvailable;
+#endif
 
-  // Get Frame Buffer Memory
-  Status = GetFrameBufferMemory (&FbBase, &FbLength);
-  if (EFI_ERROR (Status)) {
+  if ((Buffer == NULL) || (NumberOfBytes == 0)) {
     return 0;
   }
 
-  // Get Interrupts State
-  BOOLEAN InterruptState = ArmGetInterruptState ();
+  Header           = NULL;
+  LogData          = NULL;
+  LogDataSize      = 0;
+  BootLogAvailable = FALSE;
 
-  // Disable Interrupts
-  if (InterruptState) {
-    ArmDisableInterrupts ();
+  //
+  // Locate the platform memory region named "Log Buffer".
+  // Failure must not interrupt UEFI boot or framebuffer output.
+  //
+  Status = GetBootLogBuffer (
+             &Header,
+             &LogData,
+             &LogDataSize
+             );
+
+  if (!EFI_ERROR (Status) &&
+      (Header != NULL) &&
+      (LogData != NULL) &&
+      (LogDataSize != 0) &&
+      (LogDataSize <= MAX_UINT32))
+  {
+    BootLogAvailable = TRUE;
+
+    if ((Header->Signature  != BOOT_LOG_BUFFER_SIGNATURE) ||
+        (Header->Version    != BOOT_LOG_BUFFER_VERSION) ||
+        (Header->HeaderSize != sizeof (BOOT_LOG_BUFFER_HEADER)) ||
+        (Header->BufferSize != (UINT32)LogDataSize))
+    {
+      Header->Signature    = BOOT_LOG_BUFFER_SIGNATURE;
+      Header->Version      = BOOT_LOG_BUFFER_VERSION;
+      Header->HeaderSize   = sizeof (BOOT_LOG_BUFFER_HEADER);
+      Header->BufferSize   = (UINT32)LogDataSize;
+      Header->WriteOffset  = 0;
+      Header->TotalWritten = 0;
+      Header->Flags        = 0;
+      Header->Reserved     = 0;
+    }
   }
 
-  // Write Debug Message to Frame Buffer
-  for (UINTN i = 0; i < NumberOfBytes; i++) {
-    WriteFrameBuffer (FbBase, FbLength, *Buffer++);
+#if defined (FRAMEBUFFER_DEBUG_OUTPUT)
+  FbBase               = 0;
+  FbLength             = 0;
+  FrameBufferAvailable = FALSE;
+
+  Status = GetFrameBufferMemory (
+             &FbBase,
+             &FbLength
+             );
+
+  if (!EFI_ERROR (Status) &&
+      (FbBase != 0) &&
+      (FbLength != 0))
+  {
+    FrameBufferAvailable = TRUE;
+  }
+#endif
+
+  for (UINTN Index = 0; Index < NumberOfBytes; Index++) {
+    UINT8 Character;
+
+    Character = Buffer[Index];
+
+#if defined (FRAMEBUFFER_DEBUG_OUTPUT)
+    if (FrameBufferAvailable) {
+      WriteFrameBuffer (
+        FbBase,
+        FbLength,
+        Character
+        );
+    }
+#endif
+
+    if (BootLogAvailable) {
+      if (Header->WriteOffset < Header->BufferSize) {
+        LogData[Header->WriteOffset++] = Character;
+      } else {
+        Header->Flags |= 1U;
+      }
+
+      Header->TotalWritten++;
+    }
   }
 
-  // Enable Interrupts
-  if (InterruptState) {
-    ArmEnableInterrupts ();
+  if (BootLogAvailable) {
+    WriteBackInvalidateDataCacheRange (
+      Header,
+      sizeof (BOOT_LOG_BUFFER_HEADER) + LogDataSize
+      );
   }
-
-  // Flush Frame Buffer
-  WriteBackInvalidateDataCacheRange ((VOID *)FbBase, FbLength);
 
   return NumberOfBytes;
 }
-
 UINTN
 EFIAPI
 SerialPortRead (
