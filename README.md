@@ -2,15 +2,15 @@
 
 ## Overview
 
-BootLog is an optional logging framework for Mu-Silicium that captures the complete UEFI DEBUG output and stores a persistent boot report for offline analysis.
+BootLog is an optional firmware logging system for UEFI-based projects.
+
+It captures the complete UEFI DEBUG output during boot and automatically generates a persistent boot report for offline analysis.
 
 Instead of relying on on-screen debug messages, BootLog automatically saves the complete firmware log to:
 
 ```text
 LOGFS:\bootlog.txt
 ```
-
-The framework is completely optional and is enabled only by the `-l` build option.
 
 ---
 
@@ -83,6 +83,60 @@ If the boot process does not reach this stage, a persistent boot log cannot be g
 
 ---
 
+## Device Integration
+
+Before using the `-l` build option, BootLog must be added to the target device configuration.
+
+### 1. Update `DeviceBuild.py`
+
+Find:
+
+```python
+self.env.SetValue ("BLD_*_ENABLE_SECUREBOOT", self.env.GetValue("ENABLE_SECUREBOOT"), "Default")
+```
+
+Add the following line immediately after it:
+
+```python
+self.env.SetValue ("BLD_*_ENABLE_BOOTLOG", self.env.GetValue("ENABLE_BOOTLOG", "0"), "BootLog")
+```
+
+After the change:
+
+```python
+self.env.SetValue ("BLD_*_ENABLE_SECUREBOOT", self.env.GetValue("ENABLE_SECUREBOOT"), "Default")
+self.env.SetValue ("BLD_*_ENABLE_BOOTLOG", self.env.GetValue("ENABLE_BOOTLOG", "0"), "BootLog")
+self.env.SetValue ("BLD_*_FD_BASE", self.env.GetValue("FD_BASE"), "Default")
+```
+
+### 2. Update `APRIORI.inc` and `DXE.inc`
+
+Find:
+
+```ini
+INF FatPkg/EnhancedFatDxe/Fat.inf
+```
+
+Insert the following lines immediately after it:
+
+```ini
+!if $(ENABLE_BOOTLOG) == 1
+  INF SiliciumPkg/Drivers/BootLogDxe/BootLogDxe.inf
+!endif
+```
+
+After the change:
+
+```ini
+INF FatPkg/EnhancedFatDxe/Fat.inf
+
+!if $(ENABLE_BOOTLOG) == 1
+  INF SiliciumPkg/Drivers/BootLogDxe/BootLogDxe.inf
+!endif
+```
+
+---
+
 ## Build
 
 Default build
@@ -107,7 +161,7 @@ python3 build_uefi.py -d <device> -r DEBUG
 
 ## What does `-l` enable?
 
-The `-l` option enables the complete BootLog framework while keeping the firmware as a normal production build.
+The `-l` option enables the complete BootLog implementation.
 
 It enables:
 
@@ -121,7 +175,7 @@ It enables:
 * ACPI Table Tracker
 * Boot Analytics
 
-The default build behavior remains unchanged unless `-l` is explicitly specified.
+The `-l` option enables BootLog only for devices where the **Device Integration** steps described above have already been completed.
 
 ---
 
@@ -160,8 +214,6 @@ Each generated report includes:
 
 * Log Buffer memory region
 * Writable LOGFS partition
-
-If both are available, BootLog operates automatically without additional configuration.
 
 ---
 
