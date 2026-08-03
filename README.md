@@ -217,8 +217,4 @@ Each generated report includes:
 
 ---
 
-## Developers
-
-* mero
-* Axiom
 
